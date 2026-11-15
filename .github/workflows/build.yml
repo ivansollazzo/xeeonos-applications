@@ -20,9 +20,8 @@ permissions:
   contents: read
 
 env:
-  # The xapp tool lives in the extension xapp of xeeonos-extensions; until
-  # it is merged there, its branch.
-  XAPP_REF: ${{ inputs.xapp_ref || 'claude/project-thread-19zffs' }}
+  # The xapp tool: the extension xapp of xeeonos-extensions.
+  XAPP_REF: ${{ inputs.xapp_ref || 'testing' }}
 
 jobs:
   build:
