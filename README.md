@@ -1,14 +1,39 @@
 # XeeonOS applications
 
-`.xapp` applications for [XeeonOS](https://github.com/ivansollazzo/xeeonos):
-an application is a directory `Name.xapp` with its files and a manifest
-(`xapp.conf`). Copy it into `~/Applications` (or `xctl app install`) and it
-appears in the menu; delete it and it is gone.
+Recipes of `.xapp` applications for [XeeonOS](https://github.com/ivansollazzo/xeeonos).
 
-This repository holds the recipes that make them from upstream builds
-(Firefox first) and their tests. Support for `.xapp` itself (`xctl app`, the
-monitor of `/var/lib/xapps`) is part of the system, in the main repository.
+A `.xapp` is one application in one file, as on macOS: put it in
+`~/Applications` and it is in the menu, double click opens it, delete it and
+it is gone, replace it and it is updated. Each file carries its own minimal
+Arch Linux runtime and runs in a sandbox, with the permissions the user gives
+it. The format and the `xapp` tool are the extension `xapp` of
+[xeeonos-extensions](https://github.com/ivansollazzo/xeeonos-extensions)
+(`sudo xctl extensions enable xapp`; specification in `docs/xapp.md` there).
 
-Work in progress: the Firefox recipe moves here from the main repository.
+This repository is **not** a store: XeeonOS never downloads from it. It only
+makes files, which are published like any download.
+
+## Recipes
+
+| Recipe | Application |
+|---|---|
+| `recipes/firefox` | Firefox (Arch Linux package, updates off: a new file is the update) |
+
+A recipe is a directory with `recipe.json` (packages from one Arch Linux
+Archive snapshot, command, permissions, icon) and optional scripts. To make
+one on XeeonOS:
+
+```
+xapp build recipes/firefox          # builds Firefox.xapp and installs it
+xapp build recipes/firefox --no-install --output Firefox.xapp
+```
+
+## CI
+
+`.github/workflows/build.yml` builds every recipe with the `xapp` tool of
+xeeonos-extensions, checks signature and integrity, starts Firefox once in
+its sandbox and uploads the files as an artifact of the run. They are signed
+with the secret `XAPP_SIGNING_KEY` when it is set, otherwise with a throwaway
+key (XeeonOS then asks "unknown author" before opening them).
 
 Branch `experimental`: development, as in the main repository.
