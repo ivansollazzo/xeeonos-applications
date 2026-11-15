@@ -1,0 +1,60 @@
+name: Build applications
+
+# Builds every .xapp of recipes/ with the xapp tool of the XeeonOS
+# repository, checks it and starts it once in its sandbox. The files are
+# uploaded as an artifact of the run: to try one, download it and put it
+# in ~/Applications on XeeonOS. Signed with secret XAPP_SIGNING_KEY when it
+# is set, otherwise with a throwaway key (an "unknown author").
+
+on:
+  pull_request:
+  push:
+    branches: [experimental]
+  workflow_dispatch:
+    inputs:
+      xeeonos_ref:
+        description: Branch of the XeeonOS repository with the xapp tool
+        default: testing
+
+permissions:
+  contents: read
+
+env:
+  # Until xapp support is merged in XeeonOS, its branch.
+  XEEONOS_REF: ${{ inputs.xeeonos_ref || 'claude/project-thread-19zffs' }}
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ivansollazzo/xeeonos
+          ref: ${{ env.XEEONOS_REF }}
+          path: xeeonos
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq erofs-utils erofsfuse fuse3 bubblewrap xdg-dbus-proxy >/dev/null
+          # Ubuntu blocks unprivileged user namespaces with AppArmor; the
+          # sandbox (bubblewrap) needs them, as on XeeonOS.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          rustup update stable && rustup default stable
+          (cd xeeonos/xapp && cargo build --release --locked --quiet)
+          echo "XAPP=$PWD/xeeonos/xapp/target/release/xapp" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
+        run: tools/build.sh
+      - name: Start Firefox in its sandbox
+        run: tools/smoke-firefox.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: applications
+          path: |
+            out/*.xapp
+            out/*.info.txt
+          retention-days: 14

@@ -1,0 +1,26 @@
+{
+  "app_id": "org.mozilla.firefox",
+  "name": "Firefox",
+  "names": {"it": "Firefox"},
+  "description": "Web browser",
+  "snapshot": "2026/11/13",
+  "packages": ["firefox", "firefox-i18n-it", "noto-fonts", "noto-fonts-emoji", "ttf-dejavu"],
+  "exec": ["/usr/lib/firefox/firefox"],
+  "gpu": "host",
+  "permissions": [
+    {"id": "network", "reason": "To browse the web"},
+    {"id": "gpu", "reason": "To draw pages and play videos smoothly"},
+    {"id": "notifications", "reason": "To show notifications from websites you allow"},
+    {"id": "downloads", "reason": "To save the files you download"},
+    {"id": "documents", "reason": "To open and upload your documents"},
+    {"id": "pictures", "reason": "To upload your pictures"},
+    {"id": "audio", "reason": "To play sound and use the microphone in calls"},
+    {"id": "camera", "reason": "To use the camera in video calls"}
+  ],
+  "mime_types": ["text/html", "application/xhtml+xml", "application/pdf", "x-scheme-handler/http", "x-scheme-handler/https"],
+  "categories": ["Network", "WebBrowser"],
+  "wm_class": "firefox",
+  "icon": "/usr/share/icons/hicolor/128x128/apps/firefox.png",
+  "remove": ["usr/lib/firefox/updater", "usr/lib/firefox/crashreporter", "usr/lib/firefox/minidump-analyzer", "usr/lib/firefox/pingsender"],
+  "script": "build.sh"
+}
