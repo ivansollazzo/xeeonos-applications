@@ -1,7 +1,7 @@
 name: Build applications
 
-# Builds every .xapp of recipes/ with the xapp tool of the XeeonOS
-# repository, checks it and starts it once in its sandbox. The files are
+# Builds every .xapp of recipes/ with the xapp tool of xeeonos-extensions
+# (extension xapp), checks it and starts it once in its sandbox. The files are
 # uploaded as an artifact of the run: to try one, download it and put it
 # in ~/Applications on XeeonOS. Signed with secret XAPP_SIGNING_KEY when it
 # is set, otherwise with a throwaway key (an "unknown author").
@@ -12,16 +12,17 @@ on:
     branches: [experimental]
   workflow_dispatch:
     inputs:
-      xeeonos_ref:
-        description: Branch of the XeeonOS repository with the xapp tool
+      xapp_ref:
+        description: Branch of xeeonos-extensions with the xapp tool
         default: testing
 
 permissions:
   contents: read
 
 env:
-  # Until xapp support is merged in XeeonOS, its branch.
-  XEEONOS_REF: ${{ inputs.xeeonos_ref || 'claude/project-thread-19zffs' }}
+  # The xapp tool lives in the extension xapp of xeeonos-extensions; until
+  # it is merged there, its branch.
+  XAPP_REF: ${{ inputs.xapp_ref || 'claude/project-thread-19zffs' }}
 
 jobs:
   build:
@@ -32,9 +33,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ivansollazzo/xeeonos
-          ref: ${{ env.XEEONOS_REF }}
-          path: xeeonos
+          repository: ivansollazzo/xeeonos-extensions
+          ref: ${{ env.XAPP_REF }}
+          path: xeeonos-extensions
       - name: Tools
         run: |
           sudo apt-get update -qq
@@ -43,8 +44,8 @@ jobs:
           # sandbox (bubblewrap) needs them, as on XeeonOS.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           rustup update stable && rustup default stable
-          (cd xeeonos/xapp && cargo build --release --locked --quiet)
-          echo "XAPP=$PWD/xeeonos/xapp/target/release/xapp" >> "$GITHUB_ENV"
+          (cd xeeonos-extensions/extensions/xapp/source && cargo build --release --locked --quiet)
+          echo "XAPP=$PWD/xeeonos-extensions/extensions/xapp/source/target/release/xapp" >> "$GITHUB_ENV"
       - name: Build
         env:
           XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}

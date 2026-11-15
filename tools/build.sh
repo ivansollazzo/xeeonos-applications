@@ -1,6 +1,6 @@
 #!/bin/bash
 # CI: build every recipe (or the ones given) into out/<Name>.xapp with the
-# xapp tool of the XeeonOS repository, check the files and start each
+# xapp tool of xeeonos-extensions (extension xapp), check the files and start each
 # application once in its sandbox.
 #
 #   XAPP=<path to xapp>  XAPP_SIGNING_KEY: the publisher key (else a
