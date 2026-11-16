@@ -21,7 +21,7 @@ permissions:
 
 env:
   # The xapp tool: the extension xapp of xeeonos-extensions.
-  XAPP_REF: ${{ inputs.xapp_ref || 'testing' }}
+  XAPP_REF: ${{ inputs.xapp_ref || 'claude/project-thread-19zffs' }}
 
 jobs:
   build:
@@ -53,6 +53,10 @@ jobs:
         run: tools/smoke-firefox.sh
       - name: Wizard (xapp create from Arch packages)
         run: tools/wizard.sh
+      - name: Wizard (xapp create from Firefox of mozilla.org)
+        env:
+          XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
+        run: tools/wizard-url.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: applications
