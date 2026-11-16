@@ -21,7 +21,7 @@ permissions:
 
 env:
   # The xapp tool: the extension xapp of xeeonos-extensions.
-  XAPP_REF: ${{ inputs.xapp_ref || 'claude/project-thread-19zffs' }}
+  XAPP_REF: ${{ inputs.xapp_ref || 'testing' }}
 
 jobs:
   build:
