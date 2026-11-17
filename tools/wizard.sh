@@ -4,13 +4,13 @@
 # The packages are a GTK app and a Qt app, to see the menu entry, icon and
 # permission proposals of both.
 #
-#   XAPP=<path to xapp>  [packages...] (default: gnome-calculator kcalc)
+#   XAPP=<path to xapp>  [packages...] (default: gnome-calculator kcalc vlc)
 set -euo pipefail
 xapp=${XAPP:?XAPP: path to the xapp binary}
 # The snapshot of the official recipes (the runner is not XeeonOS).
 snapshot=$(python3 -c 'import json; print(json.load(open("recipes/firefox/recipe.json"))["snapshot"])')
 pkgs=("$@")
-[[ ${#pkgs[@]} -gt 0 ]] || pkgs=(gnome-calculator kcalc)
+[[ ${#pkgs[@]} -gt 0 ]] || pkgs=(gnome-calculator kcalc vlc)
 mkdir -p out/wizard
 for pkg in "${pkgs[@]}"; do
     echo "::group::xapp create --arch $pkg"

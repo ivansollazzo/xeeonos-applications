@@ -53,6 +53,8 @@ jobs:
         run: tools/smoke-firefox.sh
       - name: Wizard (xapp create from Arch packages)
         run: tools/wizard.sh
+      - name: VLC lists its plugins from the image's cache
+        run: tools/smoke-vlc.sh
       - name: Wizard (xapp create from Firefox of mozilla.org)
         env:
           XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
