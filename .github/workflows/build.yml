@@ -68,3 +68,124 @@ jobs:
             out/*.xapp
             out/*.info.txt
           retention-days: 14
+
+  steam-vm:
+    name: Steam on XeeonOS VM (reused bundle)
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'Steam')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the previously built Steam bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: applications
+          repository: ivansollazzo/xeeonos-applications
+          run-id: 44186041160
+          github-token: ${{ github.token }}
+          path: reused
+      - name: Get XeeonOS and VM tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ivansollazzo/xeeonos
+          ref: testing
+          path: xeeonos
+      - name: Get extension image tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ivansollazzo/xeeonos-extensions
+          ref: testing
+          path: xeeonos-extensions
+      - name: QEMU and disk tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 ovmf dosfstools mtools fdisk zstd erofs-utils
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-xeeonos-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+          df -h /
+      - name: Select the newest published testing image
+        id: image
+        run: |
+          token=$(curl -sSf "https://ghcr.io/token?scope=repository:ivansollazzo/xeeonos:pull" | jq -r .token)
+          tags=$(curl -sSf -H "Authorization: Bearer $token" "https://ghcr.io/v2/ivansollazzo/xeeonos/tags/list?n=1000" | jq -r '.tags[]')
+          version=$(grep -E '^[0-9]+\.[0-9]+-testing\.' <<< "$tags" | sort -V | tail -n1)
+          test -n "$version" || { echo "No published testing image found"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Testing XeeonOS image: $version" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build a bootable disk from the published XeeonOS image
+        env:
+          VERSION: ${{ steps.image.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/system"
+          xeeonos-extensions/tools/fetch-system.sh --boot "$VERSION" "$RUNNER_TEMP/system"
+          sudo xeeonos-extensions/tools/mkdisk.sh "$RUNNER_TEMP/system" "$VERSION" "$RUNNER_TEMP/xeeonos.raw"
+          sudo chown "$USER:$USER" "$RUNNER_TEMP/xeeonos.raw"
+      - name: Run Steam inside XeeonOS
+        run: |
+          bundle=$(find reused -maxdepth 2 -name 'Steam.xapp' -print -quit)
+          test -n "$bundle" || { echo "Steam.xapp missing from reused artifact"; exit 1; }
+          mkdir -p vm-http
+          cp "$bundle" vm-http/Steam.xapp
+          cat > "$RUNNER_TEMP/steam-vm-test.sh" <<'TEST'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          fail() { echo "STEAM-VM-FAIL: $*"; exit 1; }
+          command -v xapp >/dev/null || fail "xapp extension is not enabled in this XeeonOS image"
+          id test >/dev/null 2>&1 || useradd --create-home --user-group test
+          uid=$(id -u test)
+          home=/home/test
+          systemctl start --no-block graphical.target
+          mkdir -p /etc/gdm
+          printf '[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=test\n' > /etc/gdm/custom.conf
+          systemctl restart display-manager.service
+          for _ in $(seq 240); do pgrep -u test -x gnome-shell >/dev/null && break; sleep 1; done
+          pgrep -u test -x gnome-shell >/dev/null || fail "GNOME session did not start"
+          session_env=$(runuser -u test -- env XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user show-environment |
+            grep -E '^(DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|WAYLAND_DISPLAY|DISPLAY|XDG_DATA_DIRS|XDG_CURRENT_DESKTOP|LANG)=' || true)
+          as_test() { runuser -u test -- env $session_env HOME="$home" USER=test XAPP_TERMINAL=none "$@"; }
+          mkdir -p "$home/Applications"
+          curl -fsS http://10.0.2.2:8080/Steam.xapp -o "$home/Applications/Steam.xapp"
+          chown -R test:test "$home/Applications"
+          as_test xapp sync
+          as_test xapp info org.xeeon.arch.steam
+          as_test xapp permissions org.xeeon.arch.steam network yes
+          as_test xapp permissions org.xeeon.arch.steam gpu yes
+          echo "STEAM-VM: launching bundled Steam"
+          set +e
+          timeout --signal=TERM 75s runuser -u test -- env $session_env HOME="$home" USER=test XAPP_TERMINAL=none \
+            xapp run --yes org.xeeon.arch.steam > /tmp/steam-launch.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/steam-launch.log
+          sleep 10
+          logs=$(as_test xapp logs org.xeeon.arch.steam 2>&1 || true)
+          printf '%s\n' "$logs" | tee /tmp/steam-xapp.log
+          cat /tmp/steam-launch.log /tmp/steam-xapp.log > /tmp/steam-all.log
+          if grep -Eqi 'missing.*32-bit libraries|missing.*libc\.so\.6|error while loading shared libraries:.*libc\.so\.6' /tmp/steam-all.log; then
+            fail "Steam still reports missing 32-bit libc"
+          fi
+          if ! grep -Eqi 'STEAM.*(bootstrap|runtime)|steamwebhelper|Steam.*(update|starting)|pressure-vessel|steam' /tmp/steam-all.log; then
+            fail "no Steam startup evidence in launch or XApp logs (timeout rc=$rc)"
+          fi
+          echo "STEAM-VM-PASSED"
+          TEST
+          chmod +x "$RUNNER_TEMP/steam-vm-test.sh"
+          TIMEOUT=900 DISK_SIZE=32G xeeonos/tools/boot-test.sh \
+            --http "$PWD/vm-http" \
+            --credential steam-test="$RUNNER_TEMP/steam-vm-test.sh" \
+            --run "/bin/bash /run/credentials/@system/steam-test" \
+            --expect "STEAM-VM-PASSED" \
+            "$RUNNER_TEMP/xeeonos.raw" "$RUNNER_TEMP/steam-vm-serial.log"
+      - name: Preserve VM diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: steam-xeeonos-vm-logs
+          path: |
+            ${{ runner.temp }}/steam-vm-serial.log
+            ${{ runner.temp }}/steam-launch.log
+            ${{ runner.temp }}/steam-xapp.log
+          if-no-files-found: ignore
+          retention-days: 14
