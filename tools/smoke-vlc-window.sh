@@ -48,12 +48,24 @@ sudo chroot --userspec=65534:65534 /tmp/vlc.root /usr/bin/vlc -vv -I dummy --lis
 # mounts it), with the dynamic loader telling what it does.
 try_qt() {
     sudo chroot --userspec=65534:65534 "$1" /usr/bin/env -i HOME=/tmp \
-        LD_DEBUG=libs,files XDG_RUNTIME_DIR=/tmp \
+        XDG_RUNTIME_DIR=/tmp \
         /usr/bin/timeout 10 /usr/bin/vlc -vv -I qt 2>&1 |
         grep -iE 'qt_plugin|error|cannot|interface' | grep -v stale | head -40 || true
 }
 echo "--- kernel erofs"
 try_qt /tmp/vlc.root
+# The same with an X server (abstract socket, reached from the chroot).
+sudo apt-get install -y -qq xvfb >/dev/null
+Xvfb :99 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+sleep 2
+echo "--- kernel erofs, with X11"
+sudo chroot --userspec=65534:65534 /tmp/vlc.root /usr/bin/env -i HOME=/tmp \
+    DISPLAY=:99 XDG_RUNTIME_DIR=/tmp /usr/bin/timeout 10 /usr/bin/vlc -vv -I qt 2>&1 |
+    grep -iE 'interface|qt' | grep -v stale | head -20 || true
+echo "--- kernel erofs, Wayland only"
+sudo chroot --userspec=65534:65534 /tmp/vlc.root /usr/bin/env -i HOME=/tmp \
+    WAYLAND_DISPLAY=wayland-ci XDG_RUNTIME_DIR=/tmp /usr/bin/timeout 10 /usr/bin/vlc -vv -I qt 2>&1 |
+    grep -iE 'interface|qt' | grep -v stale | head -20 || true
 sudo umount /tmp/vlc.root
 echo "--- erofsfuse"
 mkdir -p /tmp/vlc.fuse
