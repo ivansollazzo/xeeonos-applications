@@ -38,7 +38,7 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq erofs-utils erofsfuse fuse3 bubblewrap xdg-dbus-proxy >/dev/null
+          sudo apt-get install -y -qq erofs-utils erofsfuse fuse3 bubblewrap xdg-dbus-proxy weston >/dev/null
           # Ubuntu blocks unprivileged user namespaces with AppArmor; the
           # sandbox (bubblewrap) needs them, as on XeeonOS.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -55,6 +55,8 @@ jobs:
         run: tools/wizard.sh
       - name: VLC lists its plugins from the image's cache
         run: tools/smoke-vlc.sh
+      - name: VLC opens its window (Wayland, no screen)
+        run: tools/smoke-vlc-window.sh
       - name: Wizard (xapp create from Firefox of mozilla.org)
         env:
           XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
