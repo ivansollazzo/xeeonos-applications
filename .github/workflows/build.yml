@@ -175,7 +175,7 @@ jobs:
           echo "STEAM-VM-PASSED"
           TEST
           chmod +x "$RUNNER_TEMP/steam-vm-test.sh"
-          printf '%s\\n' language=en_US.UTF-8 hostname=steam-vm user=test \
+          printf '%s\n' language=en_US.UTF-8 hostname=steam-vm user=test \
             "fullname=Steam VM Test" password=test-password admin=yes > "$RUNNER_TEMP/setup.txt"
           TIMEOUT=900 DISK_SIZE=32G xeeonos/tools/boot-test.sh \
             --setup "$RUNNER_TEMP/setup.txt" \
