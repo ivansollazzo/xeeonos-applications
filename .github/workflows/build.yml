@@ -132,7 +132,8 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           fail() { echo "STEAM-VM-FAIL: $*"; exit 1; }
-          command -v xapp >/dev/null || fail "xapp extension is not enabled in this XeeonOS image"
+          if ! command -v xapp >/dev/null; then xctl extensions enable xapp --yes; fi
+          command -v xapp >/dev/null || fail "xapp extension could not be enabled"
           id test >/dev/null 2>&1 || useradd --create-home --user-group test
           uid=$(id -u test)
           home=/home/test
