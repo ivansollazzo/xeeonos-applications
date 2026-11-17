@@ -1,0 +1,42 @@
+{
+  "app_id": "org.xeeon.arch.steam",
+  "name": "Steam",
+  "description": "Application for managing and playing games on Steam",
+  "snapshot": "2026/11/13",
+  "packages": [
+    "steam",
+    "lib32-vulkan-radeon",
+    "lib32-vulkan-intel",
+    "lib32-vulkan-nouveau",
+    "polkit",
+    "xdg-desktop-portal-impl",
+    "xorg-fonts-misc",
+    "NTSYNC-MODULE",
+    "ntsync-autoload",
+    "tar",
+    "glibc",
+    "lib32-glibc"
+  ],
+  "exec": ["/usr/bin/steam"],
+  "gpu": "host",
+  "multilib": true,
+  "permissions": [
+    {"id": "network", "reason": "To connect to the internet"},
+    {"id": "gpu", "reason": "To draw its windows smoothly"},
+    {"id": "notifications", "reason": "To show notifications"},
+    {"id": "documents", "reason": "To open and save your documents"},
+    {"id": "downloads", "reason": "To save the files you download"},
+    {"id": "pictures", "reason": "To open and save your pictures"},
+    {"id": "music", "reason": "To open your music"},
+    {"id": "videos", "reason": "To open your videos"},
+    {"id": "desktop", "reason": "To open the files on your desktop"},
+    {"id": "audio", "reason": "To play sound"},
+    {"id": "autostart", "reason": "To start when you log in"}
+  ],
+  "mime_types": ["x-scheme-handler/steam", "x-scheme-handler/steamlink"],
+  "categories": ["Network", "FileTransfer", "Game"],
+  "wm_class": "steam",
+  "icon": "/usr/share/icons/hicolor/256x256/apps/steam.png",
+  "user_namespaces": true,
+  "script": "build.sh"
+}
