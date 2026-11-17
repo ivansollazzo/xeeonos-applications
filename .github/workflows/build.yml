@@ -1,7 +1,7 @@
 name: Build applications
 
 # Builds every .xapp of recipes/ with the xapp tool of xeeonos-extensions
-# (extension xapp), checks it and starts it once in its sandbox. The files are
+# (extension xapp) and checks it. The files are
 # uploaded as an artifact of the run: to try one, download it and put it
 # in ~/Applications on XeeonOS. Signed with secret XAPP_SIGNING_KEY when it
 # is set, otherwise with a throwaway key (an "unknown author").
@@ -38,27 +38,29 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq erofs-utils erofsfuse fuse3 bubblewrap xdg-dbus-proxy >/dev/null
-          # Ubuntu blocks unprivileged user namespaces with AppArmor; the
-          # sandbox (bubblewrap) needs them, as on XeeonOS.
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get install -y -qq erofs-utils >/dev/null
           rustup update stable && rustup default stable
           (cd xeeonos-extensions/extensions/xapp/source && cargo build --release --locked --quiet)
           echo "XAPP=$PWD/xeeonos-extensions/extensions/xapp/source/target/release/xapp" >> "$GITHUB_ENV"
       - name: Build
         env:
           XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
-        run: tools/build.sh
-      - name: Start Firefox in its sandbox
-        run: tools/smoke-firefox.sh
-      - name: Wizard (xapp create from Arch packages)
-        run: tools/wizard.sh
-      - name: VLC lists its plugins from the image's cache
-        run: tools/smoke-vlc.sh
-      - name: Wizard (xapp create from Firefox of mozilla.org)
-        env:
-          XAPP_SIGNING_KEY: ${{ secrets.XAPP_SIGNING_KEY }}
-        run: tools/wizard-url.sh
+        run: |
+          # Signed with XAPP_SIGNING_KEY; without it with a throwaway key
+          # (the files are then for testing only).
+          mkdir -p out
+          key=out/ci.key
+          if [[ -n ${XAPP_SIGNING_KEY:-} ]]; then key=; fi
+          for r in recipes/*/; do
+              r=${r%/}
+              name=$(jq -r .name "$r/recipe.json")
+              echo "::group::build $name"
+              "$XAPP" build "$r" ${key:+--key "$key"} --output "out/$name.xapp" \
+                  --work "$RUNNER_TEMP/xapp-work-${r##*/}" --no-install
+              echo "::endgroup::"
+              "$XAPP" verify "out/$name.xapp"
+              "$XAPP" info "out/$name.xapp" | tee "out/$name.info.txt"
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: applications

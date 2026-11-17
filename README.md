@@ -31,8 +31,8 @@ xapp build recipes/firefox --no-install --output Firefox.xapp
 ## CI
 
 `.github/workflows/build.yml` builds every recipe with the `xapp` tool of
-xeeonos-extensions, checks signature and integrity, starts Firefox once in
-its sandbox and uploads the files as an artifact of the run. They are signed
+xeeonos-extensions, checks signature and integrity and uploads the files as
+an artifact of the run. They are signed
 with the secret `XAPP_SIGNING_KEY` when it is set, otherwise with a throwaway
 key (XeeonOS then asks "unknown author" before opening them).
 
