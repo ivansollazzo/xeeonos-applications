@@ -44,5 +44,21 @@ for so in /tmp/vlc.root/usr/lib/vlc/plugins/gui/libqt_plugin.so; do
     sudo chroot /tmp/vlc.root /usr/bin/ldd "${so#/tmp/vlc.root}" | grep -iE 'not found' || echo "ldd: nothing missing"
 done
 sudo chroot --userspec=65534:65534 /tmp/vlc.root /usr/bin/vlc -vv -I dummy --list 2>&1 | grep -iE 'qt|skins|cannot|warning' | head -40 || true
+# The Qt interface, on the kernel's erofs and on erofsfuse (as the sandbox
+# mounts it), with the dynamic loader telling what it does.
+try_qt() {
+    sudo chroot --userspec=65534:65534 "$1" /usr/bin/env -i HOME=/tmp \
+        LD_DEBUG=libs,files XDG_RUNTIME_DIR=/tmp \
+        /usr/bin/timeout 10 /usr/bin/vlc -vv -I qt 2>&1 |
+        grep -iE 'qt_plugin|error|cannot|interface' | grep -v stale | head -40 || true
+}
+echo "--- kernel erofs"
+try_qt /tmp/vlc.root
 sudo umount /tmp/vlc.root
+echo "--- erofsfuse"
+mkdir -p /tmp/vlc.fuse
+sudo erofsfuse -o allow_other /tmp/vlc.erofs /tmp/vlc.fuse
+try_qt /tmp/vlc.fuse
+ls -la /tmp/vlc.fuse/usr/lib/vlc/plugins/gui/
+sudo fusermount3 -u /tmp/vlc.fuse || true
 exit 1
