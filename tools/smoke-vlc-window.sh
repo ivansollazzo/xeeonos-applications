@@ -20,5 +20,26 @@ grep -vE 'stale plugins cache|plugin (loaded|cache)' /tmp/vlc.log | grep -iE 'in
 echo "--- last lines (exit status $status)"
 tail -n 40 /tmp/vlc.log
 # Still running when timeout stopped it (124), with the Qt interface.
-grep -q 'using interface module "qt"' /tmp/vlc.log
-[[ $status -eq 124 ]]
+if grep -q 'using interface module "qt"' /tmp/vlc.log && [[ $status -eq 124 ]]; then
+    exit 0
+fi
+# Why not: what the image has of the Qt interface.
+echo "--- the image"
+size=$(python3 - "$file" <<'PY'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+print(struct.unpack('<QI', data[-24:-12])[0])
+PY
+)
+head -c "$size" "$file" > /tmp/vlc.erofs
+mkdir -p /tmp/vlc.root
+sudo mount -t erofs -o loop,ro /tmp/vlc.erofs /tmp/vlc.root
+ls -la /tmp/vlc.root/usr/lib/vlc/plugins/gui/ || true
+ls -la /tmp/vlc.root/usr/lib/vlc/plugins/plugins.dat || true
+strings /tmp/vlc.root/usr/lib/vlc/plugins/plugins.dat | grep -ciE 'libqt_plugin' || true
+for so in /tmp/vlc.root/usr/lib/vlc/plugins/gui/libqt_plugin.so; do
+    sudo chroot /tmp/vlc.root /usr/bin/ldd "${so#/tmp/vlc.root}" | grep -iE 'not found' || echo "ldd: nothing missing"
+done
+sudo chroot --userspec=65534:65534 /tmp/vlc.root /usr/bin/vlc -vv -I dummy --list 2>&1 | grep -iE 'qt|skins|cannot|warning' | head -40 || true
+sudo umount /tmp/vlc.root
+exit 1
