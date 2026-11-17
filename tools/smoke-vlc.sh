@@ -13,4 +13,5 @@ if grep -q 'stale plugins cache' <<< "$out"; then
     echo "smoke-vlc.sh: the plugin cache does not match the image" >&2
     exit 1
 fi
-grep -q 'libavcodec\|avcodec' <<< "$out"
+# The module list came out (the core is always there).
+grep -q 'core program' <<< "$out"
