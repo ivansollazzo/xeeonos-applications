@@ -21,7 +21,7 @@ permissions:
 
 env:
   # The xapp tool: the extension xapp of xeeonos-extensions.
-  XAPP_REF: ${{ inputs.xapp_ref || 'testing' }}
+  XAPP_REF: ${{ inputs.xapp_ref || 'claude/project-thread-19zffs' }}
 
 jobs:
   build:
@@ -55,7 +55,7 @@ jobs:
         run: tools/wizard.sh
       - name: VLC lists its plugins from the image's cache
         run: tools/smoke-vlc.sh
-      - name: VLC opens its window (Wayland, no screen)
+      - name: VLC opens its window
         run: tools/smoke-vlc-window.sh
       - name: Wizard (xapp create from Firefox of mozilla.org)
         env:
