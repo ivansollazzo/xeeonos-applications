@@ -134,11 +134,13 @@ jobs:
           fail() { echo "STEAM-VM-FAIL: $*"; exit 1; }
           if ! command -v xapp >/dev/null; then xctl extensions enable xapp --yes; fi
           command -v xapp >/dev/null || fail "xapp extension could not be enabled"
-          id test >/dev/null 2>&1 || useradd --create-home --user-group test
+          id test >/dev/null 2>&1 || fail "first-boot setup did not create user test"
           uid=$(id -u test)
-          home=/home/test
+          home=$(getent passwd test | cut -d: -f6)
           systemctl start --no-block graphical.target
-          mkdir -p /etc/gdm
+          # /etc/gdm is an image symlink; replace it as in the desktop VM test.
+          rm -f /etc/gdm
+          mkdir /etc/gdm
           printf '[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=test\n' > /etc/gdm/custom.conf
           systemctl restart display-manager.service
           for _ in $(seq 240); do pgrep -u test -x gnome-shell >/dev/null && break; sleep 1; done
@@ -173,7 +175,10 @@ jobs:
           echo "STEAM-VM-PASSED"
           TEST
           chmod +x "$RUNNER_TEMP/steam-vm-test.sh"
+          printf '%s\\n' language=en_US.UTF-8 hostname=steam-vm user=test \
+            "fullname=Steam VM Test" password=test-password admin=yes > "$RUNNER_TEMP/setup.txt"
           TIMEOUT=900 DISK_SIZE=32G xeeonos/tools/boot-test.sh \
+            --setup "$RUNNER_TEMP/setup.txt" \
             --http "$PWD/vm-http" \
             --credential steam-test="$RUNNER_TEMP/steam-vm-test.sh" \
             --run "/bin/bash /run/credentials/@system/steam-test" \
