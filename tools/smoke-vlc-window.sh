@@ -23,7 +23,10 @@ tail -n 40 /tmp/vlc.log
 if grep -q 'using interface module "qt"' /tmp/vlc.log && [[ $status -eq 124 ]]; then
     exit 0
 fi
-# Why not: what the image has of the Qt interface.
+# Why not: what VLC sees in its sandbox, then what the image has.
+echo "--- in the sandbox"
+timeout 60 "$xapp" run --yes "$file" -vv -I dummy --list 2>&1 | grep -iE ' qt |cannot|warning' | head -40 || true
+timeout 60 "$xapp" run --yes "$file" -vvv -I qt 2>&1 | grep -iE 'qt|cannot|module|plugin' | grep -v 'stale' | head -80 || true
 echo "--- the image"
 size=$(python3 - "$file" <<'PY'
 import struct, sys
