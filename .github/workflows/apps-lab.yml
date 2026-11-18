@@ -6,8 +6,10 @@ name: App lab
 # recipe (`xapp --yes create`), xapp builds it, lab/apps/analyze.sh looks
 # at the image from outside, then lab/apps/vm.sh runs it in a XeeonOS VM
 # with --trace and prints what it said and left. The result is the logs
-# (and the VERDICT line of each), not a pass or a fail. The xapp used is
-# the one of xeeonos-extensions at XAPP_REF, in the build and in the VM.
+# (and the VERDICT line of each), not a pass or a fail. Each application
+# runs twice, with the xapp of xeeonos-extensions at two branches (in the
+# build and in the VM): testing (what users have) and the branch with the
+# fixes (XAPP_REF), side by side.
 
 on:
   pull_request:
@@ -17,8 +19,8 @@ on:
   workflow_dispatch:
     inputs:
       xapp_ref:
-        description: Branch of xeeonos-extensions with the xapp to try
-        default: testing
+        description: Branch of xeeonos-extensions with the xapp to try (beside testing)
+        default: claude/project-thread-19zffs
 
 permissions:
   contents: read
@@ -29,24 +31,25 @@ defaults:
 
 env:
   SNAPSHOT: 2026/11/13
-  XAPP_REF: ${{ inputs.xapp_ref || 'testing' }}
 
 jobs:
   app:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} (${{ matrix.xapp }})
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
+        xapp: [testing, fixes]
+        name: [steam, wine, discord, vlc, jdownloader2, firefox-url, vscodium-dir]
         include:
           # Arch: 32-bit (multilib) and its own runtime downloaded at start.
           - name: steam
             create: --arch steam
             run_for: 600
-          # Arch: 32-bit and 64-bit programs, a program to start.
+          # Arch: 32-bit and 64-bit programs, a program to start (no menu entry).
           - name: wine
-            create: --arch wine
+            create: --arch wine --exec /usr/bin/wine
             args: winecfg
             run_for: 240
           # Arch: Electron, downloaded at start.
@@ -67,8 +70,10 @@ jobs:
             run_for: 180
           # A directory: the official VSCodium archive, unpacked (Electron).
           - name: vscodium-dir
-            create: --dir
+            create: --dir --exec codium
             run_for: 180
+    env:
+      XAPP_REF: ${{ matrix.xapp == 'testing' && 'testing' || inputs.xapp_ref || 'claude/project-thread-19zffs' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,7 +109,7 @@ jobs:
                   jq -r '.assets[].browser_download_url | select(test("VSCodium-linux-x64-.*\\.tar\\.gz$"))')
               mkdir -p "$RUNNER_TEMP/VSCodium"
               curl -fsSL "$url" | tar -xz -C "$RUNNER_TEMP/VSCodium"
-              create=(--dir "$RUNNER_TEMP/VSCodium")
+              create=(--dir "$RUNNER_TEMP/VSCodium" "${create[@]:1}")
           fi
           "$XAPP" --yes create "${create[@]}" --snapshot "$SNAPSHOT" \
               --output "$RUNNER_TEMP/recipe" --no-build 2>&1 | tee "$RUNNER_TEMP/wizard.log"
@@ -121,14 +126,14 @@ jobs:
           printf '%s\n' "${{ matrix.args }}" > vm-http/args
           echo "${{ matrix.run_for }}" > vm-http/run_for
           cp "$XAPP" vm-http/xapp
-          rm -rf "$RUNNER_TEMP/work"
+          sudo rm -rf "$RUNNER_TEMP/work"
       - name: Analysis of the image
         run: |
           # The image is at the start of the .xapp (erofs ignores the rest).
           mkdir -p "$RUNNER_TEMP/root"
           fsck.erofs --extract="$RUNNER_TEMP/root" vm-http/app.xapp >/dev/null 2>&1 || true
           bash lab/apps/analyze.sh "$RUNNER_TEMP/root" "$RUNNER_TEMP/build.log"
-          rm -rf "$RUNNER_TEMP/root"
+          sudo rm -rf "$RUNNER_TEMP/root"
       - name: The newest testing image of XeeonOS
         id: image
         run: |
