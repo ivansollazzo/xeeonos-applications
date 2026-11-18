@@ -51,6 +51,11 @@ jobs:
           echo "----- recipe.json"
           cat "$RUNNER_TEMP/recipe/recipe.json"
           ls -la "$RUNNER_TEMP/recipe"
+      - name: What a user added by hand (lab/steam/edits.jq)
+        run: |
+          r=$RUNNER_TEMP/recipe/recipe.json
+          jq -f lab/steam/edits.jq "$r" > "$r.new" && mv "$r.new" "$r"
+          diff <(echo) <(jq -c .packages "$r") || true
       - name: Build
         run: |
           mkdir -p out
@@ -63,7 +68,8 @@ jobs:
       - name: Analysis of the image
         if: always()
         run: |
-          image=$RUNNER_TEMP/work/out/image.erofs
+          # The image is at the start of the .xapp (erofs ignores the rest).
+          image=out/app.xapp
           test -s "$image" || { echo "no image"; exit 0; }
           mkdir -p "$RUNNER_TEMP/root"
           fsck.erofs --extract="$RUNNER_TEMP/root" --no-preserve "$image" >/dev/null 2>&1 ||
