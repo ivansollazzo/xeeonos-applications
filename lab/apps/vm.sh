@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
-# Steam lab (not to merge): inside a XeeonOS VM (boot-test.sh --run), as
-# root. Gets the .xapp from the runner (http://10.0.2.2:8080), starts it in
+# App lab (not to merge): inside a XeeonOS VM (boot-test.sh --run), as
+# root. Gets the .xapp, its id, its arguments, how long to let it run and
+# the xapp program to use from the runner (http://10.0.2.2:8080), starts it in
 # a GNOME session of user test with --trace, lets it run, then prints
 # everything it said and left. Always ends with LAB-DONE (the logs are
 # the result, not a pass or a fail).
 set -uo pipefail
 say() { echo "LAB| $*"; }
 done_() { say "$*"; echo "LAB-DONE"; exit 0; }
-RUN_FOR=${RUN_FOR:-900}
 
 if ! command -v xapp >/dev/null; then xctl extensions enable xapp --yes; fi
 command -v xapp >/dev/null || done_ "xapp extension could not be enabled"
 id test >/dev/null 2>&1 || done_ "first-boot setup did not create user test"
 uid=$(id -u test)
 home=$(getent passwd test | cut -d: -f6)
-app_id=$(curl -fsS http://10.0.2.2:8080/app_id)
-# The lab build of xapp (see the workflow), in place of the system's.
+get() { curl -fsS "http://10.0.2.2:8080/$1"; }
+app_id=$(get app_id)
+read -r -a app_args <<< "$(get args || true)"
+RUN_FOR=$(get run_for || echo 300)
+# The xapp of the branch under test (see the workflow), in place of the
+# system's.
 mkdir -p /var/lib/lab && curl -fsS http://10.0.2.2:8080/xapp -o /var/lib/lab/xapp && chmod 755 /var/lib/lab/xapp
 xapp() { /var/lib/lab/xapp "$@"; }
 
@@ -46,7 +50,7 @@ data=$home/.var/xapps/$app_id
 
 say "starting $app_id for at most ${RUN_FOR}s (xapp run --yes --trace)"
 as_test env XAPP_DEBUG=1 timeout --signal=TERM --kill-after=30 "$RUN_FOR" \
-    /var/lib/lab/xapp run --yes --trace "$app_id" > /tmp/app.out 2>&1 &
+    /var/lib/lab/xapp run --yes --trace "$app_id" "${app_args[@]}" > /tmp/app.out 2>&1 &
 runner=$!
 start=$(date +%s)
 while kill -0 "$runner" 2>/dev/null; do
@@ -57,14 +61,15 @@ while kill -0 "$runner" 2>/dev/null; do
         grep -vE 'gnome|gsd-|gvfs|evolution|ibus|xdg-|dbus|pipewire|wireplumber|systemd|Xwayland|at-spi|dconf|tracker|goa-|mutter|(sd-pam)|ps -u|grep -v' |
         cut -c1-220 | sed 's/^/LAB|   /' | head -n 40
     say "t=${t}s data: $(du -sh "$data" 2>/dev/null | cut -f1), lines of output: $(wc -l < /tmp/app.out)"
-    # Once the web helper (its window) has lived 3 minutes, enough is seen.
-    if ps -u test -o etimes=,args= | awk '/steamwebhelper/ && $1 > 180 {f=1} END {exit !f}'; then
-        say "steamwebhelper up for 3 minutes: stopping"
-        as_test xapp kill "$app_id" || true
-    fi
 done
 wait "$runner"
-say "xapp run ended with code $? after $(( $(date +%s) - start ))s"
+code=$?
+took=$(( $(date +%s) - start ))
+if [[ $code == 124 ]]; then
+    say "VERDICT $app_id: still running after ${RUN_FOR}s (stopped by the lab)"
+else
+    say "VERDICT $app_id: ended by itself with code $code after ${took}s"
+fi
 
 section() { echo; say "===== $*"; }
 section "output of xapp run (last 400 lines)"
@@ -87,6 +92,6 @@ journalctl -k -b --no-pager | grep -iE 'audit|denied|segfault|seccomp|userns|app
 section "crashes"
 coredumpctl list --no-pager 2>&1 | tail -n 20 | sed 's/^/LAB|   /'
 section "journal of test about the application (last 150 lines)"
-journalctl -b --no-pager _UID="$uid" | grep -iE "xapp|steam|bwrap|pressure|$app_id" |
+journalctl -b --no-pager _UID="$uid" | grep -iE "xapp|bwrap|$app_id" |
     tail -n 150 | cut -c1-300 | sed 's/^/LAB|   /'
 done_ "end"

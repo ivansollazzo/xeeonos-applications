@@ -1,5 +1,5 @@
 #!/bin/bash
-# Steam lab (not to merge): what the image of an application has and
+# App lab (not to merge): what the image of an application has and
 # lacks, looked at from outside. Usage: analyze.sh <extracted image> <build log>
 set -uo pipefail
 root=$1
@@ -91,19 +91,30 @@ for l in usr/lib/libX11.so.6 usr/lib32/libX11.so.6 usr/lib/libwayland-client.so.
     [[ -e $root/$l ]] && echo "yes $l" || echo "NO  $l"
 done
 
-boot=$(find "$root/usr/lib/steam" -name 'bootstraplinux*.tar.xz' 2>/dev/null | head -n1)
-if [[ -n $boot ]]; then
-    sec "The application's own launcher: what the bootstrap archive holds"
+sec "Archives inside the image (launchers that unpack themselves)"
+n=0
+while IFS= read -r a; do
+    n=$((n + 1)); [[ $n -le 6 ]] || break
     b=$(mktemp -d)
-    tar -xJf "$boot" -C "$b"
-    (cd "$b" && find . -maxdepth 2 | sort | cap 60)
-    sec "The bootstrap's ELF files: libraries neither it nor the image has"
-    unresolved 1 "$b" "$root/usr/lib32" "$b/ubuntu12_32" | summarize
-    unresolved 2 "$b" "$root/usr/lib" | summarize
-    sec "steam.sh: what it checks before starting"
-    grep -nE 'ldconfig|32-bit|i386|libc\.so|check_|STEAM_RUNTIME|pressure|unshare|bwrap|userns' \
-        "$b/steam.sh" | cap 80
+    case $a in
+        *.zip) unzip -q "$a" -d "$b" 2>/dev/null ;;
+        *) tar -xf "$a" -C "$b" 2>/dev/null ;;
+    esac
+    elfs=$(find "$b" -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null | wc -l)
+    echo "--- ${a#"$root"/}: $(find "$b" -type f | wc -l) files, $elfs ELF"
+    if [[ $elfs -gt 0 ]]; then
+        echo "  libraries neither the archive nor the image has (32-bit, then 64-bit):"
+        unresolved 1 "$b" "$root/usr/lib32" | summarize | sed 's/^/    /'
+        unresolved 2 "$b" "$root/usr/lib" | summarize | sed 's/^/    /'
+        echo "  display libraries its ELF files link to:"
+        find "$b" -type f -print0 | xargs -0 -r readelf -d 2>/dev/null |
+            grep -oE 'lib(X11|xcb|wayland-client|GL|EGL|vulkan)\.so[.0-9]*' | sort | uniq -c | sed 's/^/    /'
+    fi
     rm -rf "$b"
-fi
-sec "bin_steam.sh (the packaged launcher)"
-grep -nE 'ldconfig|32|libc|bootstrap|STEAM' "$root/usr/lib/steam/bin_steam.sh" 2>/dev/null | cap 40
+done < <(find "$root/usr" "$root/opt" -type f \( -name '*.tar.xz' -o -name '*.tar.gz' -o -name '*.tgz' \
+    -o -name '*.tar.zst' -o -name '*.zip' \) -size +100k 2>/dev/null | grep -vE '/usr/share/(doc|help)/' | head -n 20)
+[[ $n -gt 0 ]] || echo "none"
+
+sec "Programs that make their own sandbox, and display libraries of the image's programs"
+for f in usr/bin/bwrap usr/lib/chrome-sandbox; do [[ -e $root/$f ]] && echo "has $f"; done
+find "$root" -name chrome-sandbox -o -name 'chrome_crashpad_handler' 2>/dev/null | sed "s|^$root/|has |" | head -n 5
