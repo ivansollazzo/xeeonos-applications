@@ -42,6 +42,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq erofs-utils jq >/dev/null
           rustup update stable && rustup default stable
+          # Lab patch (not a proposal): let i386 system calls through the
+          # seccomp filter, to see what fails after that.
+          python3 - xeeonos-extensions/extensions/xapp/source/crates/xapp-sandbox/src/seccomp.rs <<'PY'
+          import sys
+          p = sys.argv[1]; s = open(p).read()
+          old = "jmp(JEQ, AUDIT_ARCH_X86_64, 1, 0),\n        ret(RET_KILL_PROCESS),"
+          new = ("jmp(JEQ, AUDIT_ARCH_X86_64, 3, 0),\n        jmp(JEQ, 0x4000_0003, 0, 1),\n"
+                 "        ret(RET_ALLOW),\n        ret(RET_KILL_PROCESS),")
+          assert old in s
+          open(p, "w").write(s.replace(old, new))
+          PY
           (cd xeeonos-extensions/extensions/xapp/source && cargo build --release --locked --quiet)
           echo "XAPP=$PWD/xeeonos-extensions/extensions/xapp/source/target/release/xapp" >> "$GITHUB_ENV"
       - name: The wizard alone (xapp --yes create --arch steam)
@@ -65,6 +76,7 @@ jobs:
           "$XAPP" verify out/app.xapp
           "$XAPP" info out/app.xapp
           jq -r .app_id "$RUNNER_TEMP/recipe/recipe.json" > out/app_id
+          cp "$XAPP" out/xapp
       - name: Analysis of the image
         if: always()
         run: |
@@ -81,6 +93,7 @@ jobs:
           path: |
             out/app.xapp
             out/app_id
+            out/xapp
           retention-days: 3
 
   vm:

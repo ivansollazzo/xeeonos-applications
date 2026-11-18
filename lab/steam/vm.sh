@@ -15,6 +15,9 @@ id test >/dev/null 2>&1 || done_ "first-boot setup did not create user test"
 uid=$(id -u test)
 home=$(getent passwd test | cut -d: -f6)
 app_id=$(curl -fsS http://10.0.2.2:8080/app_id)
+# The lab build of xapp (see the workflow), in place of the system's.
+mkdir -p /var/lib/lab && curl -fsS http://10.0.2.2:8080/xapp -o /var/lib/lab/xapp && chmod 755 /var/lib/lab/xapp
+xapp() { /var/lib/lab/xapp "$@"; }
 
 systemctl start --no-block graphical.target
 rm -f /etc/gdm
@@ -27,7 +30,11 @@ sleep 10
 session_env=$(runuser -u test -- env XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user show-environment |
     grep -E '^(DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|WAYLAND_DISPLAY|DISPLAY|XDG_DATA_DIRS|XDG_CURRENT_DESKTOP|LANG)=' || true)
 say "session: $(echo $session_env)"
-as_test() { runuser -u test -- env $session_env HOME="$home" USER=test XAPP_TERMINAL=none "$@"; }
+as_test() {
+    local c=$1; shift
+    [[ $c == xapp ]] && c=/var/lib/lab/xapp
+    runuser -u test -- env $session_env HOME="$home" USER=test XAPP_TERMINAL=none "$c" "$@"
+}
 
 mkdir -p "$home/Applications"
 curl -fsS http://10.0.2.2:8080/app.xapp -o "$home/Applications/app.xapp"
@@ -39,7 +46,7 @@ data=$home/.var/xapps/$app_id
 
 say "starting $app_id for at most ${RUN_FOR}s (xapp run --yes --trace)"
 as_test env XAPP_DEBUG=1 timeout --signal=TERM --kill-after=30 "$RUN_FOR" \
-    xapp run --yes --trace "$app_id" > /tmp/app.out 2>&1 &
+    /var/lib/lab/xapp run --yes --trace "$app_id" > /tmp/app.out 2>&1 &
 runner=$!
 start=$(date +%s)
 while kill -0 "$runner" 2>/dev/null; do
