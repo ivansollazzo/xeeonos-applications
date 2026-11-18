@@ -10,3 +10,8 @@
 # user namespaces (pressure-vessel, the web helper's sandbox).
 | .capabilities = ((.capabilities // []) + ["x11"] | unique)
 | .user_namespaces = true
+# Run 3: with i386 let through, Steam updated itself (483 MB) and its
+# client said "Unable to open a connection to X": the lab passed no
+# XAUTHORITY from the GNOME session (vm.sh, fixed for run 4; xapp itself
+# binds it). The trace also saw a refused session bus name:
+# com.steampowered.PressureVessel.LaunchAlongsideSteam.Instance<N>.

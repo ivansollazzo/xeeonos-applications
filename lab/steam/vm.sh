@@ -28,7 +28,7 @@ for _ in $(seq 240); do pgrep -u test -x gnome-shell >/dev/null && break; sleep 
 pgrep -u test -x gnome-shell >/dev/null || done_ "GNOME session did not start"
 sleep 10
 session_env=$(runuser -u test -- env XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user show-environment |
-    grep -E '^(DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|WAYLAND_DISPLAY|DISPLAY|XDG_DATA_DIRS|XDG_CURRENT_DESKTOP|LANG)=' || true)
+    grep -E '^(DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|WAYLAND_DISPLAY|DISPLAY|XAUTHORITY|XDG_DATA_DIRS|XDG_CURRENT_DESKTOP|LANG)=' || true)
 say "session: $(echo $session_env)"
 as_test() {
     local c=$1; shift
