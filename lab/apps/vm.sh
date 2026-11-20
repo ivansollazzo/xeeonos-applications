@@ -77,7 +77,8 @@ tail -n 400 /tmp/app.out | cut -c1-400 | sed 's/^/LAB|   /'
 section "xapp logs (last 300 lines)"
 as_test xapp logs "$app_id" 2>&1 | tail -n 300 | cut -c1-400 | sed 's/^/LAB|   /'
 section "xapp doctor"
-as_test xapp doctor "$app_id" </dev/null 2>&1 | head -n 60 | sed 's/^/LAB|   /'
+# --yes: what it would ask is answered (the lab only reads it).
+as_test timeout 600 /var/lib/lab/xapp --yes doctor "$app_id" </dev/null 2>&1 | head -n 80 | sed 's/^/LAB|   /'
 section "files the application left in its data (depth 4)"
 find "$data" -maxdepth 4 | sed "s|^$data|.|" | sort | head -n 150 | sed 's/^/LAB|   /'
 section "its log files"

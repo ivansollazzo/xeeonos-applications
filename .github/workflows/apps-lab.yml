@@ -39,6 +39,8 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      # The Arch Linux Archive slows down (to nothing) with 14 jobs at once.
+      max-parallel: 4
       matrix:
         xapp: [testing, fixes]
         name: [steam, wine, discord, vlc, jdownloader2, firefox-url, vscodium-dir]
